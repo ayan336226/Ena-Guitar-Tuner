@@ -273,39 +273,69 @@ startBtn.addEventListener("click", async ()=>{
     pitch > 70 &&
     pitch < 350
 ){
+   frequencyElement.innerText = pitch.toFixed(2);
 
-                frequencyElement.innerText = pitch.toFixed(2);
+const targetFreq = strings[selectedString];
+const difference = pitch - targetFreq;
 
-                const targetFreq = strings[selectedString];
+// 🔥 noise gate (VERY IMPORTANT)
+if (!pitch || pitch < 50 || pitch > 2000) return;
 
-                const difference = pitch - targetFreq;
+// meter mapping
+let targetPosition = 50 + (difference * 1.2);
 
-                let meterPosition = 50 + (difference * 2);
+// clamp
+targetPosition = Math.max(0, Math.min(100, targetPosition));
 
-                if(meterPosition < 0) meterPosition = 0;
-                if(meterPosition > 100) meterPosition = 100;
-
-                meter.style.left = meterPosition + "%";
-
-                let percentage = Math.round(difference);
-
-if(percentage > 0){
-
-    statusElement.innerText = "+" + percentage + "%";
-    statusElement.style.color = "#ff4444";
-
+// init
+if (meter._pos === undefined) {
+    meter._pos = 50;
 }
-else if(percentage < 0){
 
-    statusElement.innerText = percentage + "%";
-    statusElement.style.color = "#ffcc00";
+// smoothing (stable movement)
+meter._pos += (targetPosition - meter._pos) * 0.12;
 
+// snap when very close
+if (Math.abs(meter._pos - targetPosition) < 0.05) {
+    meter._pos = targetPosition;
 }
-else{
 
-    statusElement.innerText = "0%";
-    statusElement.style.color = "#00ffae";
+
+
+// meter movement (smooth + safe)
+meter.style.left = meter._pos + "%";
+
+// cents calculation (real tuner logic)
+let cents = 1200 * Math.log2(pitch / targetFreq);
+let absCents = Math.round(cents);
+
+// status logic
+let statusText = "";
+let color = "";
+
+if (Math.abs(cents) < 5) {
+    statusText = "Perfect";
+    color = "#00ffae";
+} 
+else if (cents > 0) {
+    statusText = "String Tight (Tune Down)";
+    color = "#ffcc00";
+} 
+else {
+    statusText = "String Loose (Tune Up)";
+    color = "#ff4444";
 }
+
+// UI update
+statusElement.innerHTML = `
+    <div style="font-size:22px; font-weight:bold;">
+        ${absCents > 0 ? "+" : ""}${absCents} cents
+    </div>
+    <div style="font-size:16px; margin-top:5px;">
+        ${statusText}
+    </div>
+`;
+statusElement.style.color = color;
             }
 
             requestAnimationFrame(detect);
