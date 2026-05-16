@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+
+<title>ENA Guitar Tuner</title>
+
+<style>
+
+*{
+    margin:0;
+    padding:0;
+    box-sizing:border-box;
+}
+
+body{
+    background:#0b0b0b;
+    color:white;
+    font-family:Arial, sans-serif;
+    height:100vh;
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    overflow:hidden;
+}
+
+.container{
+    width:90%;
+    max-width:450px;
+    background:#151515;
+    border-radius:25px;
+    padding:30px;
+    text-align:center;
+    box-shadow:0 0 40px rgba(0,255,170,0.15);
+}
+
+.logo{
+    font-size:32px;
+    font-weight:bold;
+    color:#00ffae;
+    margin-bottom:10px;
+}
+
+.subtitle{
+    color:#aaa;
+    margin-bottom:35px;
+}
+
+.note{
+    font-size:120px;
+    font-weight:bold;
+    color:#00ffae;
+    text-shadow:0 0 25px rgba(0,255,174,0.7);
+}
+
+.frequency{
+    margin-top:10px;
+    font-size:22px;
+    color:#ddd;
+}
+
+.status{
+    margin-top:15px;
+    font-size:20px;
+    font-weight:bold;
+}
+
+.meter-container{
+    width:100%;
+    height:10px;
+    background:#2a2a2a;
+    border-radius:20px;
+    margin-top:40px;
+    position:relative;
+    overflow:hidden;
+}
+
+.meter{
+    width:10px;
+    height:100%;
+    background:#00ffae;
+    position:absolute;
+    left:50%;
+    transform:translateX(-50%);
+    transition:0.1s;
+}
+
+.scale{
+    display:flex;
+    justify-content:space-between;
+    margin-top:10px;
+    color:#888;
+    font-size:14px;
+}
+
+button{
+    margin-top:35px;
+    padding:16px 35px;
+    border:none;
+    border-radius:14px;
+    background:#00ffae;
+    color:black;
+    font-size:18px;
+    font-weight:bold;
+    cursor:pointer;
+    transition:0.3s;
+}
+
+button:hover{
+    transform:scale(1.05);
+}
+
+.strings{
+    margin-top:30px;
+    display:grid;
+    grid-template-columns:repeat(6,1fr);
+    gap:10px;
+}
+
+.string{
+    background:#222;
+    padding:12px;
+    border-radius:12px;
+    transition:0.3s;
+}
+
+.active{
+    background:#00ffae;
+    color:black;
+    font-weight:bold;
+}
+
+.footer{
+    margin-top:25px;
+    color:#666;
+    font-size:14px;
+}
+
+</style>
+</head>
+<body>
+
+<div class="container">
+
+    <div class="logo">ENA Guitar Tuner</div>
+    <div class="subtitle">Professional Online Guitar Tuner</div>
+
+    <div class="note" id="note">--</div>
+
+    <div class="frequency">
+        <span id="frequency">0</span> Hz
+    </div>
+
+    <div class="status" id="status">
+    0%
+</div>
+
+<div class="meter-container">
+    <div class="meter" id="meter"></div>
+</div>
+
+    <div class="strings">
+        <div class="string" id="E2">E</div>
+        <div class="string" id="A2">A</div>
+        <div class="string" id="D3">D</div>
+        <div class="string" id="G3">G</div>
+        <div class="string" id="B3">B</div>
+        <div class="string" id="E4">e</div>
+    </div>
+
+    <button id="startBtn">Start Tuner</button>
+
+    <div class="footer">
+        Developed by Ayan
+    </div>
+
+</div>
+
+<script type="module">
+
+import { PitchDetector } from "https://esm.sh/pitchy";
+
+const noteElement = document.getElementById("note");
+const frequencyElement = document.getElementById("frequency");
+const statusElement = document.getElementById("status");
+const meter = document.getElementById("meter");
+const startBtn = document.getElementById("startBtn");
+
+const strings = {
+    "E2": 82.41,
+    "A2": 110.00,
+    "D3": 146.83,
+    "G3": 196.00,
+    "B3": 246.94,
+    "E4": 329.63
+};
+
+function getClosestString(freq){
+
+    let closest = null;
+    let minDiff = Infinity;
+
+    for(let note in strings){
+
+        let diff = Math.abs(freq - strings[note]);
+
+        if(diff < minDiff){
+            minDiff = diff;
+            closest = note;
+        }
+    }
+
+    return closest;
+}
+
+ let selectedString = "E2";
+
+document.querySelectorAll(".string").forEach(button=>{
+
+    button.addEventListener("click", ()=>{
+
+        document.querySelectorAll(".string").forEach(el=>{
+            el.classList.remove("active");
+        });
+
+        button.classList.add("active");
+
+        selectedString = button.id;
+
+        noteElement.innerText = selectedString;
+    });
+
+});
+
+document.getElementById("E2").classList.add("active");
+noteElement.innerText = "E2";
+startBtn.addEventListener("click", async ()=>{
+
+    try{
+
+        const stream = await navigator.mediaDevices.getUserMedia({
+            audio:true
+        });
+
+        const audioContext = new(window.AudioContext || window.webkitAudioContext)();
+
+        const analyser = audioContext.createAnalyser();
+
+        analyser.fftSize = 2048;
+
+        const source = audioContext.createMediaStreamSource(stream);
+
+        source.connect(analyser);
+
+        const input = new Float32Array(analyser.fftSize);
+
+        const detector = PitchDetector.forFloat32Array(analyser.fftSize);
+
+        startBtn.innerText = "Listening...";
+
+        function detect(){
+
+            analyser.getFloatTimeDomainData(input);
+
+            const [pitch, clarity] = detector.findPitch(
+                input,
+                audioContext.sampleRate
+            );
+
+            if(
+    clarity > 0.96 &&
+    pitch > 70 &&
+    pitch < 350
+){
+
+                frequencyElement.innerText = pitch.toFixed(2);
+
+                const targetFreq = strings[selectedString];
+
+                const difference = pitch - targetFreq;
+
+                let meterPosition = 50 + (difference * 2);
+
+                if(meterPosition < 0) meterPosition = 0;
+                if(meterPosition > 100) meterPosition = 100;
+
+                meter.style.left = meterPosition + "%";
+
+                let percentage = Math.round(difference);
+
+if(percentage > 0){
+
+    statusElement.innerText = "+" + percentage + "%";
+    statusElement.style.color = "#ff4444";
+
+}
+else if(percentage < 0){
+
+    statusElement.innerText = percentage + "%";
+    statusElement.style.color = "#ffcc00";
+
+}
+else{
+
+    statusElement.innerText = "0%";
+    statusElement.style.color = "#00ffae";
+}
+            }
+
+            requestAnimationFrame(detect);
+        }
+
+        detect();
+
+    }catch(error){
+
+        console.log(error);
+
+        alert(error.message);
+    }
+
+});
+
+</script>
+
+</body>
+</html>
